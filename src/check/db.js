@@ -112,7 +112,7 @@ export default class GxgdCheckDb {
     ])
       .then(data => data.map(result => result.length > 0 ? result[0].rowCount : -1))
       .then(data => {
-        this.rows[table] = { total: data[0], errors: data[1] }
+        this.rows[table] = { ...this.rows[table], total: data[0], errors: data[1] }
         return this.rows[table]
       })
   }
@@ -159,20 +159,28 @@ export default class GxgdCheckDb {
     const CHARORD = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ' // suppose we don't have more than 26 columns..
     let targetFile = path.resolve(this.rootDir, 'check_result.xlsx')
 
-    let additionCols = {
-      error_text: {label: '错误信息', len: 200},
-      fixed: {label: '已修复', len: 50},
-      line: {label: '原始数据行', len: 1000}
-    }
-    let tables = Object.keys(this.requiredFields)
-    let colDefs = tables.map(table => ({ ...this.requiredFields[table], ...additionCols }))
-    let exportCols = tables.map((table, index) => Object.keys(colDefs[index]))
+    // let additionCols = {
+    //   error_text: {label: '错误信息', len: 200},
+    //   fixed: {label: '已修复', len: 50},
+    //   line: {label: '原始数据行', len: 1000}
+    // }
 
-    return Promise.all(tables.map((table, index) => this.dbc(table).where({errors: 1}).select(exportCols[index])))
+    let additionCols = [
+      { field: 'error_text', label: '错误信息', len: 200 },
+      { field: 'fixed', label: '已修复', len: 50 },
+      { field: 'line', label: '原始数据行', len: 1000 }
+    ]
+
+    let tables = Object.keys(this.requiredFields)
+    let colDefsModified_ = tables.map(table => [ ...this.requiredFields[table], ...additionCols ])
+    let exportColNames = tables.map((table, index) => colDefsModified_[index].map(def => def.field))
+
+    return Promise.all(tables.map((table, index) => this.dbc(table).where({errors: 1}).select(exportColNames[index])))
       .then(data =>
-        tables.map((table, index) =>
-          [exportCols[index].reduce((rowObj, col) => ({ ...rowObj, [col]: colDefs[index][col].label }), {}), ...data[index]]
-            .map(row => exportCols[index].map(col => row[col]))))
+        tables.map((table, tableIndex) =>
+          [exportColNames[tableIndex].reduce((rowObj, field, fieldIndex) =>
+            ({ ...rowObj, [field]: colDefsModified_[tableIndex][fieldIndex].label }), {}), ...data[tableIndex]]
+            .map(row => exportColNames[tableIndex].map(col => row[col]))))
       .then(data =>
         XlsxPopulate.fromBlankAsync()
           .then(workbook => {
@@ -181,24 +189,24 @@ export default class GxgdCheckDb {
             }
 
             let ranges = tables.map((table, index) =>
-              workbook.sheet(index).range(`A1:${CHARORD[exportCols[index].length - 1]}${data[index].length}`)
+              workbook.sheet(index).range(`A1:${CHARORD[exportColNames[index].length - 1]}${data[index].length}`)
             )
 
             // Modify the workbook.
-            tables.forEach((table, index) => {
-              // workbook.sheet(index).name(this.rows[table].name)
-              ranges[index].value(data[index])
-              // ranges[index].style('verticalAlignment', 'center')
-              // workbook.sheet(index).range(`A1:${CHARORD[exportCols[index].length - 1]}1`).style({fill: 'C0C0C0', bold: true})
-              // workbook.sheet(index).row(1).height(20)
+            tables.forEach((table, tableIndex) => {
+              workbook.sheet(tableIndex).name(this.rows[table].name)
+              ranges[tableIndex].value(data[tableIndex])
+              // ranges[tableIndex].style('verticalAlignment', 'center')
+              // workbook.sheet(tableIndex).range(`A1:${CHARORD[exportColNames[tableIndex].length - 1]}1`).style({fill: 'C0C0C0', bold: true})
+              // workbook.sheet(tableIndex).row(1).height(20)
 
-              // workbook.sheet(index).rows.height(20)
+              // workbook.sheet(tableIndex).rows.height(20)
 
               // for (let i = 1; i < data[index].length; i++) {
               //   workbook.sheet(index).row(i).height(20)
               // }
-              for (let i = 0; i < exportCols[index].length; i++) {
-                workbook.sheet(index).column(CHARORD[i]).width(colDefs[index][exportCols[index][i]].len / 5)
+              for (let i = 0; i < exportColNames[tableIndex].length; i++) {
+                workbook.sheet(tableIndex).column(CHARORD[i]).width(colDefsModified_[tableIndex][i].len / 5)
               }
             })
 
