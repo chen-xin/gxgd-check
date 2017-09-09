@@ -245,11 +245,12 @@ export default {
         .then(() => {
           this.dbc = newDbc
           this.showBoard = false
-          this.working = false
           this.workStatus = 'success'
           this.tabs = this.tabs.slice(0, 2) // [ ...this.defaultTabs ]
           this.openedTabs = ['pak', 'doc', 'pak']
+          this.working = false
           this.processingLine = 0
+          this.processingFile = 0
           return true
         })
         .catch(err => {
@@ -258,6 +259,7 @@ export default {
           this.workStatus = 'error'
           this.working = false
           this.processingLine = 0
+          this.processingFile = 0
         })
     }
   }

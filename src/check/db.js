@@ -227,36 +227,41 @@ export default class GxgdCheckDb {
   }
 
   updateFileStats () {
-    function* gen (data, sort) {
+    this.processingLine = 0
+    function gen (data, sort) {
       data.sort(sort)
-      for (let item of data) {
-        yield item
+      // console.log(data.map(value => value.uri))
+      return function* () {
+        for (let item of data) {
+          yield item
+        }
       }
     }
 
     // let columns = Object.keys(this.checkBuff).reduce(
     //   (result, table) => ({ ...result, [table]: Object.keys(this.checkBuff[table].data[0]).sort() }), {})
-    let sha256 = hash.sha256()
-
+    // let sha256 = hash.sha256()
     for (let type of Object.keys(this.checkBuff).sort()) {
-      let dirs = gen(this.checkBuff[type].dir, (a, b) => a > b ? 1 : -1)
-      let rows = gen(this.checkBuff[type].data, (a, b) => a.uri > b.uri ? 1 : -1)
+      let dirs = gen(this.checkBuff[type].dir, (a, b) => a.uri > b.uri ? 1 : -1)()
+      let rows = gen(this.checkBuff[type].data, (a, b) => a.uri > b.uri ? 1 : -1)()
       let d = dirs.next().value
+
       for (let row of rows) {
-        while (d.uri <= row.uri && d) d = dirs.next().value
-        if (`${this.__rootStem}/${d.uri}` !== row.uri || !!d) {
-          // console.log(row.title, '找不到对应文件/目录。')
+        this.processingLine++
+        while (d && `${this.__rootStem}/${d.uri}` < row.uri) { d = dirs.next().value }
+        if (!d || `${this.__rootStem}/${d.uri}` !== row.uri) {
+          // console.log('debug', `${d.uri}@${row.uri}`, !!d)
           row.errors += 1
           row.error_text += '找不到对应文件/目录。'
         } else if (type === 'doc') {
           row.size = d.size
           row.modify_time = d.modify_time
+          // sha256.update(columns[type].reduce((result, column) => result + row[column], ''))
         }
-        // sha256.update(columns[type].reduce((result, column) => result + row[column], ''))
-        sha256.update(row.line)
+        // sha256.update(`${row.line}${row.size}${row.modify_time}`)
       }
     }
-    this.dataHash = sha256.digest('hex')
+    // this.dataHash = sha256.digest('hex')
   }
 
   // Slow Algorithm
@@ -276,7 +281,7 @@ export default class GxgdCheckDb {
           row.errors += 1
           row.error_text += '找不到对应文件/目录。'
         }
-        sha256.update(row.line)
+        sha256.update(`${row.line}${row.size}${row.modify_time}`)
       }
     }
     this.dataHash = sha256.digest('hex')
@@ -285,7 +290,9 @@ export default class GxgdCheckDb {
   // Never do: `foo.on('event', dbc.insertLine)`
   // in the above code, `this` in the following function refers to foo object
   flushLines () {
+    // console.log(new Date())
     this.updateFileStats()
+    // console.log(new Date())
     // console.log(JSON.stringify(this.checkBuff))
     return this.dbc.batchInsert('pak', this.checkBuff.pak.data, 20)
       .then(() => this.dbc.batchInsert('doc', this.checkBuff.doc.data, 20))
