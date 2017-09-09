@@ -11,7 +11,7 @@
     "build:clean": "cross-env BUILD_TARGET=clean node ./build/build.js",
     "build:web": "cross-env BUILD_TARGET=web node ./build/build.js",
     "build:native": "electron-rebuild && electron-rebuild -a ia32 && ls -R node_modules/sqlite3/lib/binding",
-    "build:list": "asar list ./dist/exe/data-cleaner-win32-ia32/resources/app.asar",
+    "asar:list": "asar list ./dist/release/gxgd-check-win32-ia32/resources/app.asar",
     "dev": "node ./build/dev-runner.js",
     "e2e": "npm run pack && mocha test/e2e",
     "lint": "eslint --ext .js,.vue -f ./node_modules/eslint-friendly-formatter src test",
