@@ -19,10 +19,9 @@ export default class GxgdCheckConf {
     this.folderConf = {file: '', data: {}}
     if (workingDir) {
       this.setWorkingDir(workingDir)
-    } else {
-      this.requiredFields = this.getConf()
-      this.requiredFieldNames = this.getFieldNames()
     }
+    this.requiredFields = this.getConf()
+    this.requiredFieldNames = this.getFieldNames()
   }
 
   setWorkingDir (dir) {

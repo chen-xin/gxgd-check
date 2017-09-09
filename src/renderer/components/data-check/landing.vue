@@ -230,7 +230,7 @@ export default {
           if (!hasResult || reset) {
             this.workStatus = 'process'
             this.currentStep = 1
-            return newDbc.init() // this.dbc.init()
+            return newDbc.init()
               .then(() => { this.currentStep = 2; return this.fileData.traversDir() })
               .then(() => { this.currentStep = 3; return this.fileData.readLines() })
               .then(() => { this.currentStep = 4; return newDbc.flushLines() })

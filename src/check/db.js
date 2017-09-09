@@ -7,6 +7,7 @@ import fs from 'fs'
 import XlsxPopulate from 'xlsx-populate'
 import { newDocFields, newPakFields, line2Data, requiredFields } from './field_defs.js'
 import QueryComposer from './knexQuerycomposer.js'
+import hash from 'hash.js'
 
 const dataNames = { doc: newDocFields, pak: newPakFields }
 const queryComposer = new QueryComposer()
@@ -52,6 +53,16 @@ export default class GxgdCheckDb {
       connection: { filename: this.dbFile }
     })
     this.processingLine = 0
+    this.dataHash = ''
+    this.confHash = Object.keys(this.conf.requiredFields).sort().reduce(
+      (b, table) => {
+        b.update(this.conf.requiredFields[table].sort((a, b) => a.field > b.field).reduce(
+          (a, field) => {
+            a.update(field.field)
+            return a
+          }, hash.sha256()).digest('hex'))
+        return b
+      }, hash.sha256()).digest('hex')
   }
 
   destroy () {
@@ -223,7 +234,11 @@ export default class GxgdCheckDb {
       }
     }
 
-    for (let type of Object.keys(this.checkBuff)) {
+    // let columns = Object.keys(this.checkBuff).reduce(
+    //   (result, table) => ({ ...result, [table]: Object.keys(this.checkBuff[table].data[0]).sort() }), {})
+    let sha256 = hash.sha256()
+
+    for (let type of Object.keys(this.checkBuff).sort()) {
       let dirs = gen(this.checkBuff[type].dir, (a, b) => a > b ? 1 : -1)
       let rows = gen(this.checkBuff[type].data, (a, b) => a.uri > b.uri ? 1 : -1)
       let d = dirs.next().value
@@ -237,12 +252,16 @@ export default class GxgdCheckDb {
           row.size = d.size
           row.modify_time = d.modify_time
         }
+        // sha256.update(columns[type].reduce((result, column) => result + row[column], ''))
+        sha256.update(row.line)
       }
     }
+    this.dataHash = sha256.digest('hex')
   }
 
   // Slow Algorithm
   updateFileStats2 () {
+    let sha256 = hash.sha256()
     for (let table of Object.keys(this.checkBuff)) {
       let dir = this.checkBuff[table].dir
       for (let row of this.checkBuff[table].data) {
@@ -257,14 +276,16 @@ export default class GxgdCheckDb {
           row.errors += 1
           row.error_text += '找不到对应文件/目录。'
         }
+        sha256.update(row.line)
       }
     }
+    this.dataHash = sha256.digest('hex')
   }
 
   // Never do: `foo.on('event', dbc.insertLine)`
   // in the above code, `this` in the following function refers to foo object
   flushLines () {
-    this.updateFileStats2()
+    this.updateFileStats()
     // console.log(JSON.stringify(this.checkBuff))
     return this.dbc.batchInsert('pak', this.checkBuff.pak.data, 20)
       .then(() => this.dbc.batchInsert('doc', this.checkBuff.doc.data, 20))
