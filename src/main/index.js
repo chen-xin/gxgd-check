@@ -9,7 +9,7 @@ import { app, BrowserWindow } from 'electron'
 if (process.env.NODE_ENV !== 'development') {
   global.__static = require('path').join(__dirname, '/static').replace(/\\/g, '\\\\')
 }
-
+app.getPdfPages = require('./pdf/getPdfPages.js').getPdfPage
 let mainWindow
 const winURL = process.env.NODE_ENV === 'development'
   ? `http://localhost:9080`
@@ -23,7 +23,12 @@ function createWindow () {
     height: 563,
     useContentSize: true,
     autoHideMenuBar: true,
-    width: 1000
+    width: 1000,
+    show: false
+  })
+
+  mainWindow.once('ready-to-show', () => {
+    mainWindow.show()
   })
 
   mainWindow.maximize()

@@ -54,7 +54,7 @@
         <el-step :title="'读取磁盘文件'+ (working ? processingFile : '')" description="检查目录下所有文件名称、日期、大小等信息。"></el-step>
         <el-step :title="'装载文件数据' + (working ? processingLine : '')" description="装载.obj和.pak文件信息，装载上次核查结果（如果有）。"></el-step>
         <el-step title="核查数据" description="核查数据并保存核查结果供查阅。"></el-step>
-        <el-step title="完成" description="现在您可以浏览核查结果了！"></el-step>
+        <el-step title="完成" :description="(currentStep == 5 ? rowStat : '') + '现在您可以浏览核查结果了！'"></el-step>
       </el-steps>
     </el-row>
 
@@ -136,6 +136,16 @@ export default {
     },
     currentReqired () {
       return this.conf.requiredFieldNames
+    },
+    rowStat () {
+      let pdfInfo = ''
+      if (this.dbc.pages && this.dbc.pages.length > 0) {
+        let pdfPages = (this.dbc.pages.find(item => item.file_type === 'pdf') || {})
+        if (pdfPages) {
+          pdfInfo = `, 其中PDF文件${pdfPages.files}个共${pdfPages.pages}页。`
+        }
+        return `共处理文件${this.dbc.rows.doc.total}个${pdfInfo}`
+      } else return ''
     }
   },
   components: {
@@ -198,7 +208,7 @@ export default {
     afterSelectDir (reset = false) {
       this.$message('正在处理，请稍候...')
       this.working = true
-      this.fileData = new GxgdFile(this.formInline.selectedDir)
+      this.fileData = new GxgdFile(this.formInline.selectedDir, this.$electron.remote)
       this.conf.setWorkingDir(this.formInline.selectedDir)
       let newDbc = new GxgdCheckDb(this.formInline.selectedDir, this.conf)
 
@@ -241,7 +251,7 @@ export default {
             return true
           }
         })
-        .then(() => newDbc.countRows()).then(rows => { this.dataRows = rows })
+        .then(() => newDbc.countPages()) // .then(rows => { this.dataRows = rows })
         .then(() => {
           this.dbc = newDbc
           this.showBoard = false

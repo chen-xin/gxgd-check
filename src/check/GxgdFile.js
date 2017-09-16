@@ -3,7 +3,7 @@ import readline from 'readline'
 import EventEmitter from 'events'
 import path from 'path'
 import walk from 'walk'
-
+// import { pdfPageCount } from './pdfInfo.js'
 // cannot use [...treeData, ...newData], for that treeData and newData may both have item1,
 // but item1 of treeData contains item2, item3, while item1 of newData contains item2, item4
 // function findRoot (tree, newRoot, key = 'label', children = 'children') {
@@ -25,8 +25,10 @@ import walk from 'walk'
 // count = count + dirStats.length
 
 export default class GxgdFile extends EventEmitter {
-  constructor (rootDir) {
+  constructor (rootDir, remote) {
     super()
+    this.remote = remote
+    this.getPdfPages = remote.app.getPdfPages
     this.rootDir = rootDir
     // this.dirTree = {label: '$root', children: []}
     this.objFiles = []
@@ -70,13 +72,29 @@ export default class GxgdFile extends EventEmitter {
         })
 
         walker.on('files', (root, fileStats, next) => {
-          let fileInfos = fileStats.map(stat => ({
-            uri: path.relative(this.rootDir, path.join(root, stat.name)).replace(/\\/g, '/'),
-            size: stat.size,
-            modify_time: stat.mtime
+          // let fileInfos = fileStats.map(stat => ({
+          //   uri: path.relative(this.rootDir, path.join(root, stat.name)).replace(/\\/g, '/'),
+          //   size: stat.size,
+          //   modify_time: stat.mtime
+          // }))
+          // this.emit('getFiles', fileInfos)
+          // next()
+
+          Promise.all(fileStats.map(stat => {
+            return (path.extname(stat.name).toLowerCase() === '.pdf'
+              ? this.getPdfPages(path.resolve(root, stat.name))
+              : Promise.resolve(1))
+              .then(data => ({
+                uri: path.relative(this.rootDir, path.join(root, stat.name)).replace(/\\/g, '/'),
+                size: stat.size,
+                modify_time: stat.mtime,
+                pages: data
+              }))
           }))
-          this.emit('getFiles', fileInfos)
-          next()
+            .then(data => {
+              this.emit('getFiles', data)
+              next()
+            })
         })
 
         walker.on('end', () => {

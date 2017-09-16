@@ -68,6 +68,13 @@
         width="200"
         class="overflow">
       </el-table-column>
+      <el-table-column
+        v-if="rowStore.table == 'doc' "
+        prop="pages"
+        label="页数"
+        width="100"
+        class="overflow">
+      </el-table-column>
     </el-table>
 
     <div class="pagination pagination-bottom">

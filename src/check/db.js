@@ -45,6 +45,7 @@ export default class GxgdCheckDb {
     this.__rootStem = path.basename(rootDir)
     this.requiredFields = requiredFields
     this.rows = {doc: {total: 0, errors: 0, name: '档案'}, pak: {total: 0, errors: 0, name: '档案盒'}}
+    this.pages = []
     this.checkBuff = { doc: { data: [], dir: [] }, pak: { data: [], dir: [] } }
     this.dbFile = path.resolve(rootDir, 'gxgd_check.db')
     this.dbc = knex({
@@ -104,7 +105,8 @@ export default class GxgdCheckDb {
         table.integer('errors'),
         table.string('error_text'),
         table.boolean('fixed'),
-        table.text('line')
+        table.text('line'),
+        table.integer('pages')
       ])
         .then(() => Promise.all(
           indexes.map(col => table.index(col)))))
@@ -113,7 +115,16 @@ export default class GxgdCheckDb {
   countRows () {
     let keys = Object.keys(this.rows)
     return Promise.all(keys.map(key => this.countRow(key)))
+      .then(() => this.countPages())
       .then(() => this.rows)
+  }
+
+  countPages () {
+    return this.dbc('doc').select('file_type').count('* as files').sum('pages as pages').groupBy('file_type')
+      .then(data => {
+        this.pages = data
+        return data
+      })
   }
 
   countRow (table, args = {}) {
@@ -248,6 +259,7 @@ export default class GxgdCheckDb {
 
       for (let row of rows) {
         this.processingLine++
+        if (type === 'doc') row.pages = 0
         while (d && `${this.__rootStem}/${d.uri}` < row.uri) { d = dirs.next().value }
         if (!d || `${this.__rootStem}/${d.uri}` !== row.uri) {
           // console.log('debug', `${d.uri}@${row.uri}`, !!d)
@@ -256,6 +268,7 @@ export default class GxgdCheckDb {
         } else if (type === 'doc') {
           row.size = d.size
           row.modify_time = d.modify_time
+          row.pages = d.pages
           // sha256.update(columns[type].reduce((result, column) => result + row[column], ''))
         }
         // sha256.update(`${row.line}${row.size}${row.modify_time}`)
